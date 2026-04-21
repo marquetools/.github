@@ -24,7 +24,7 @@ Use one of the following channels:
 
 Please include as much of the following information as possible in your report:
 
-1. **Type of issue** (e.g.cross-site scripting, authentication bypass, etc.)
+1. **Type of issue** (e.g. cross-site scripting, authentication bypass, etc.)
 2. **Full paths of source file(s) at the root of the issue**
 3. **The location of the affected source code** (tag/branch/commit or direct URL)
 4. **Any special configuration required to reproduce the issue**

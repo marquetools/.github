@@ -70,7 +70,13 @@ jobs:
 
       - name: Extract version from tag
         id: version
-        run: echo "version=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+        run: |
+          VERSION="${GITHUB_REF_NAME}"
+          if ! printf '%s\n' "${VERSION}" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Tag '${VERSION}' is not a valid semver release tag (expected v<major>.<minor>.<patch>)." >&2
+            exit 1
+          fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
 
       - name: Create GitHub Release
         env:
@@ -83,9 +89,14 @@ jobs:
 
       - name: Update floating major tag (e.g. v1)
         run: |
-          MAJOR_TAG="$(echo "${{ steps.version.outputs.version }}" | grep -oP '^v\d+')"
+          VERSION="${{ steps.version.outputs.version }}"
+          MAJOR_TAG="$(printf '%s\n' "${VERSION}" | sed -n 's/^\(v[0-9][0-9]*\)\.[0-9][0-9]*\.[0-9][0-9]*$/\1/p')"
+          if [ -z "${MAJOR_TAG}" ]; then
+            echo "::error::Could not derive major tag from '${VERSION}'." >&2
+            exit 1
+          fi
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git tag --force "${MAJOR_TAG}"
           git push --force origin "${MAJOR_TAG}"
-          echo "Updated floating tag ${MAJOR_TAG} → ${{ steps.version.outputs.version }}"
+          echo "Updated floating tag ${MAJOR_TAG} → ${VERSION}"

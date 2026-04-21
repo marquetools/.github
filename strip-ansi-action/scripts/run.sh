@@ -214,8 +214,9 @@ for file in "${FILES[@]}"; do
       echo "::warning file=${ef}::${msg}"
     fi
 
-    # When on-threat=fail we do not expose the (unstripped) output.
-    [ "${ON_THREAT}" = "fail" ] && output_path=""
+    # Only expose output for threat findings when on-threat=strip explicitly
+    # requests threat-stripped content. Warn/fail must not leak it downstream.
+    [ "${ON_THREAT}" != "strip" ] && output_path=""
 
   elif [ "${exit_code}" -eq 0 ]; then
     # Detect whether any bytes were actually changed.
@@ -280,10 +281,16 @@ RESULTS_JSON+="]"
 # Emit outputs to GITHUB_OUTPUT
 # ---------------------------------------------------------------------------
 
+# Generate a unique heredoc delimiter that cannot collide with any file path.
+FWT_DELIM="_STRIP_ANSI_EOF_${$}_${RANDOM}${RANDOM}"
+while printf '%s\n' "${FILES_WITH_THREATS}" | grep -Fqx "${FWT_DELIM}"; do
+  FWT_DELIM="_STRIP_ANSI_EOF_${$}_${RANDOM}${RANDOM}"
+done
+
 {
   echo "results=${RESULTS_JSON}"
   echo "threat-detected=${THREAT_DETECTED}"
-  printf 'files-with-threats<<_STRIP_ANSI_EOF\n%s_STRIP_ANSI_EOF\n' "${FILES_WITH_THREATS}"
+  printf 'files-with-threats<<%s\n%s%s\n' "${FWT_DELIM}" "${FILES_WITH_THREATS}" "${FWT_DELIM}"
 } >> "${GITHUB_OUTPUT}"
 
 log "Done. threat-detected=${THREAT_DETECTED}"

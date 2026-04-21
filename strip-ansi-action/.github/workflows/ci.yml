@@ -76,10 +76,11 @@ jobs:
             echo "::error::Expected threat-detected=false for ansi_only.txt"
             exit 1
           fi
-          # Verify the results JSON contains status=stripped or clean
-          echo '${{ steps.test-ansi.outputs.results }}' | python3 -c "
-          import sys, json
-          results = json.load(sys.stdin)
+          # Verify the results JSON contains status=stripped or clean.
+          # Pass via env var to avoid shell-quoting issues with single quotes in content.
+          RESULTS_JSON="${{ steps.test-ansi.outputs.results }}" python3 -c "
+          import os, json
+          results = json.loads(os.environ['RESULTS_JSON'])
           assert results, 'results must not be empty'
           status = results[0]['status']
           assert status in ('stripped', 'clean'), f'expected stripped/clean, got {status}'

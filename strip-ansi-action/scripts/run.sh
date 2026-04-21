@@ -27,6 +27,8 @@ NO_UNICODE_MAP="${INPUT_NO_UNICODE_MAP:-}"
 # Use RUNNER_TEMP when available (GitHub-hosted runners); fall back to /tmp.
 WORK_DIR="${RUNNER_TEMP:-/tmp}/strip-ansi-$$"
 mkdir -p "${WORK_DIR}"
+# Ensure the temp directory is always removed on exit (normal or error).
+trap 'rm -rf "${WORK_DIR}"' EXIT
 
 # Maximum bytes of file content to include in the results JSON per file.
 MAX_OUTPUT_BYTES=51200
@@ -111,6 +113,12 @@ json_string() {
   python3 -c "import sys, json; print(json.dumps(sys.argv[1]), end='')" "$1"
 }
 
+# Return the byte length of a string (not character count) so the results-size
+# cap is accurate even when file content includes multi-byte UTF-8 sequences.
+byte_len() {
+  printf '%s' "$1" | LC_ALL=C wc -c | tr -d ' '
+}
+
 # Read a file and JSON-encode its contents, truncating at MAX_OUTPUT_BYTES.
 json_file_content() {
   local path="$1"
@@ -136,7 +144,7 @@ PYEOF
 
 _raw_input="${INPUT_FILES}"
 # If the input contains no newlines, treat spaces as delimiters (simple one-liner form).
-if ! printf '%s' "${_raw_input}" | grep -q $'\n'; then
+if [[ "${_raw_input}" != *$'\n'* ]]; then
   _raw_input="$(printf '%s' "${_raw_input}" | tr ' ' '\n')"
 fi
 
@@ -227,7 +235,13 @@ for file in "${FILES[@]}"; do
   fi
 
   log "${file}: ${status}"
-  [ -n "${stderr_out}" ] && log "  stderr: ${stderr_out}"
+  # Log stderr line-by-line so every line carries the [strip-ansi] prefix and
+  # no line can accidentally start with '::' to inject a workflow command.
+  if [ -n "${stderr_out}" ]; then
+    while IFS= read -r _stderr_line; do
+      log "  stderr: ${_stderr_line}"
+    done <<< "${stderr_out}"
+  fi
 
   # Build the output content JSON value.
   # Once the global results cap is reached, omit output content to prevent
@@ -243,8 +257,9 @@ for file in "${FILES[@]}"; do
 
   # If this entry would push the results JSON over the global cap, switch to
   # content-free entries for the remainder of the file list.
+  # Use byte_len (not ${#...}) so multi-byte UTF-8 sequences are counted correctly.
   if [ "${RESULTS_CAPPED}" = "false" ] && \
-     [ $(( ${#RESULTS_JSON} + ${#entry} + 1 )) -gt ${MAX_RESULTS_BYTES} ]; then
+     [ $(( $(byte_len "${RESULTS_JSON}") + $(byte_len "${entry}") + 1 )) -gt ${MAX_RESULTS_BYTES} ]; then
     RESULTS_CAPPED=true
     log "Global results JSON cap (${MAX_RESULTS_BYTES} bytes) reached; omitting output content for remaining files."
     out_json='""'
@@ -270,11 +285,5 @@ RESULTS_JSON+="]"
   echo "threat-detected=${THREAT_DETECTED}"
   printf 'files-with-threats<<_STRIP_ANSI_EOF\n%s_STRIP_ANSI_EOF\n' "${FILES_WITH_THREATS}"
 } >> "${GITHUB_OUTPUT}"
-
-# ---------------------------------------------------------------------------
-# Cleanup
-# ---------------------------------------------------------------------------
-
-rm -rf "${WORK_DIR}"
 
 log "Done. threat-detected=${THREAT_DETECTED}"

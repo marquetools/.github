@@ -28,7 +28,7 @@ jobs:
         id: changed-files
         uses: tj-actions/changed-files@v44
         with:
-          separator: '\n'
+          separator: "\n"
 
       # Run strip-ansi on all changed files, failing if threats are detected.
       - name: Scan for ANSI threats
@@ -64,7 +64,7 @@ jobs:
         id: changed-files
         uses: tj-actions/changed-files@v44
         with:
-          separator: '\n'
+          separator: "\n"
 
       - name: Strip ANSI and Unicode threats
         id: strip

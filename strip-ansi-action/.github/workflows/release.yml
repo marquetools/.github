@@ -1,0 +1,91 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+
+permissions:
+  contents: write
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Job 1: Validate the action before releasing
+  # ---------------------------------------------------------------------------
+  validate:
+    name: Validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: shellcheck
+        run: |
+          shellcheck --severity=warning \
+            strip-ansi-action/scripts/install.sh \
+            strip-ansi-action/scripts/run.sh
+
+      - name: actionlint
+        uses: rhysd/actionlint@v1
+        with:
+          files: strip-ansi-action/action.yml
+
+  # ---------------------------------------------------------------------------
+  # Job 2: Run the full test matrix before publishing
+  # ---------------------------------------------------------------------------
+  test:
+    name: Test (${{ matrix.os }})
+    needs: validate
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: true
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Smoke test — clean file
+        uses: ./strip-ansi-action
+        with:
+          files: strip-ansi-action/tests/fixtures/clean.txt
+          on-threat: fail
+
+      - name: Smoke test — ANSI-only file
+        uses: ./strip-ansi-action
+        with:
+          files: strip-ansi-action/tests/fixtures/ansi_only.txt
+          on-threat: fail
+
+  # ---------------------------------------------------------------------------
+  # Job 3: Create GitHub Release and update floating major tag
+  # ---------------------------------------------------------------------------
+  release:
+    name: Publish Release
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract version from tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ steps.version.outputs.version }}" \
+            --title "strip-ansi-action ${{ steps.version.outputs.version }}" \
+            --generate-notes \
+            --verify-tag
+
+      - name: Update floating major tag (e.g. v1)
+        run: |
+          MAJOR_TAG="$(echo "${{ steps.version.outputs.version }}" | grep -oP '^v\d+')"
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag --force "${MAJOR_TAG}"
+          git push --force origin "${MAJOR_TAG}"
+          echo "Updated floating tag ${MAJOR_TAG} → ${{ steps.version.outputs.version }}"

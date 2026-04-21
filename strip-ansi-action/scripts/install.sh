@@ -3,7 +3,9 @@
 #
 # Environment variables consumed:
 #   STRIP_ANSI_VERSION  — crates.io version to install (e.g. 0.5.2)
-#   GITHUB_PATH         — file to append extra PATH entries (set by the runner)
+#
+# The PATH entry for the installed binary is added by the calling action step
+# (via $GITHUB_PATH), not by this script.
 #
 # Installation order (fastest to most reliable):
 #   1. Pre-built binary download from the GitHub release
@@ -27,8 +29,17 @@ mkdir -p "${INSTALL_DIR}"
 # ---------------------------------------------------------------------------
 
 log()  { echo "[install] $*"; }
-warn() { echo "::warning::${*}"; }
-err()  { echo "::error::${*}"; exit 1; }
+
+escape_workflow_command() {
+  local message="$*"
+  message="${message//'%'/'%25'}"
+  message="${message//$'\r'/'%0D'}"
+  message="${message//$'\n'/'%0A'}"
+  printf '%s' "${message}"
+}
+
+warn() { echo "::warning::$(escape_workflow_command "$*")"; }
+err()  { echo "::error::$(escape_workflow_command "$*")"; exit 1; }
 
 have() { command -v "$1" &>/dev/null; }
 
@@ -105,9 +116,9 @@ download_binary() {
   local asset_name="strip-ansi-${target}${ext}"
   local sha_name="${asset_name}.sha256"
   local tmp_bin
-  tmp_bin="$(mktemp)"
+  tmp_bin="$(mktemp "${TMPDIR:-/tmp}/strip-ansi-bin.XXXXXX")"
   local tmp_sha
-  tmp_sha="$(mktemp)"
+  tmp_sha="$(mktemp "${TMPDIR:-/tmp}/strip-ansi-sha.XXXXXX")"
 
   log "Attempting binary download: ${BASE_URL}/${asset_name}"
 

@@ -66,13 +66,13 @@ escape_annotation_message() {
 # Validate the on-threat input.
 case "${ON_THREAT}" in
   fail|strip|warn) ;;
-  *) echo "::error::Invalid on-threat value '${ON_THREAT}'. Must be fail, strip, or warn."; exit 1 ;;
+  *) echo "::error::Invalid on-threat value '$(escape_annotation_message "${ON_THREAT}")'. Must be fail, strip, or warn."; exit 1 ;;
 esac
 
 # Validate the preset input.
 case "${PRESET}" in
   dumb|color|sanitize|tmux|xterm|full) ;;
-  *) echo "::error::Invalid preset '${PRESET}'. Must be one of: dumb, color, sanitize, tmux, xterm, full."; exit 1 ;;
+  *) echo "::error::Invalid preset '$(escape_annotation_message "${PRESET}")'. Must be one of: dumb, color, sanitize, tmux, xterm, full."; exit 1 ;;
 esac
 
 # Build the flag array for strip-ansi.
@@ -167,8 +167,10 @@ FILES_WITH_THREATS=""
 RESULTS_JSON="["
 FIRST_ENTRY=true
 RESULTS_CAPPED=false
+FILE_INDEX=0
 
 for file in "${FILES[@]}"; do
+  FILE_INDEX=$(( FILE_INDEX + 1 ))
   if [ ! -f "${file}" ]; then
     ef="$(escape_annotation_property "${file}")"
     msg="$(escape_annotation_message "File not found, skipping: ${file}")"
@@ -176,7 +178,9 @@ for file in "${FILES[@]}"; do
     continue
   fi
 
-  out_file="${WORK_DIR}/$(basename "${file}").stripped"
+  # Include a counter in the temp filename to avoid collisions when two input
+  # paths share the same basename (e.g. src/foo.txt and tests/foo.txt).
+  out_file="${WORK_DIR}/${FILE_INDEX}-$(basename "${file}").stripped"
   exit_code=0
 
   # Write stderr to a file under WORK_DIR (not /tmp) for portability and runner sandboxing.

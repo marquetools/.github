@@ -31,12 +31,37 @@ mkdir -p "${WORK_DIR}"
 # Maximum bytes of file content to include in the results JSON per file.
 MAX_OUTPUT_BYTES=51200
 
+# Maximum total bytes for the entire results JSON string (to stay within
+# GITHUB_OUTPUT expression-length limits when scanning many files).
+# When this cap is reached, further entries record status only (no output content).
+MAX_RESULTS_BYTES=512000
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
 log()  { echo "[strip-ansi] $*"; }
-warn() { echo "::warning::${*}"; }
+
+# Escape a string for use as a GitHub Actions workflow command property value
+# (e.g. the value of "file=..." in ::error file=...::).
+escape_annotation_property() {
+  local s="$1"
+  s="${s//'%'/'%25'}"
+  s="${s//$'\r'/'%0D'}"
+  s="${s//$'\n'/'%0A'}"
+  s="${s//':'/'%3A'}"
+  s="${s//','/'%2C'}"
+  printf '%s' "${s}"
+}
+
+# Escape a string for use as a GitHub Actions workflow command message body.
+escape_annotation_message() {
+  local s="$1"
+  s="${s//'%'/'%25'}"
+  s="${s//$'\r'/'%0D'}"
+  s="${s//$'\n'/'%0A'}"
+  printf '%s' "${s}"
+}
 
 # Validate the on-threat input.
 case "${ON_THREAT}" in
@@ -62,16 +87,22 @@ build_flags() {
     FLAGS+=("--on-threat=strip")
   fi
 
+  # Disable glob expansion while splitting the token strings so that tokens
+  # containing glob characters (e.g. '*') are never expanded to file paths.
   if [ -n "${UNICODE_MAP}" ]; then
+    set -f
     for token in ${UNICODE_MAP}; do
       FLAGS+=("--unicode-map" "${token}")
     done
+    set +f
   fi
 
   if [ -n "${NO_UNICODE_MAP}" ]; then
+    set -f
     for token in ${NO_UNICODE_MAP}; do
       FLAGS+=("--no-unicode-map" "${token}")
     done
+    set +f
   fi
 }
 
@@ -100,7 +131,7 @@ PYEOF
 # For convenience, a single-line input with no newlines is treated as a
 # space-separated list — but note that file paths with spaces are not
 # supported in that fallback form. Use newline-separated inputs when paths
-# may contain spaces (the standard output of actions/changed-files).
+# may contain spaces (the standard output of a changed-files action).
 # ---------------------------------------------------------------------------
 
 _raw_input="${INPUT_FILES}"
@@ -109,7 +140,14 @@ if ! printf '%s' "${_raw_input}" | grep -q $'\n'; then
   _raw_input="$(printf '%s' "${_raw_input}" | tr ' ' '\n')"
 fi
 
-mapfile -t FILES < <(printf '%s\n' "${_raw_input}" | sed '/^[[:space:]]*$/d')
+# Build the FILES array using a while loop for Bash 3.x compatibility
+# (mapfile/readarray requires Bash 4+, which is not the default on macOS).
+FILES=()
+while IFS= read -r _file; do
+  if [ -n "${_file}" ] && [ -n "${_file// /}" ]; then
+    FILES+=("${_file}")
+  fi
+done < <(printf '%s\n' "${_raw_input}" | sed '/^[[:space:]]*$/d')
 
 if [ "${#FILES[@]}" -eq 0 ]; then
   echo "::error::No files provided to the strip-ansi action (input 'files' is empty)."
@@ -128,19 +166,24 @@ THREAT_DETECTED=false
 FILES_WITH_THREATS=""
 RESULTS_JSON="["
 FIRST_ENTRY=true
+RESULTS_CAPPED=false
 
 for file in "${FILES[@]}"; do
   if [ ! -f "${file}" ]; then
-    warn "File not found, skipping: ${file}"
+    ef="$(escape_annotation_property "${file}")"
+    msg="$(escape_annotation_message "File not found, skipping: ${file}")"
+    echo "::warning file=${ef}::${msg}"
     continue
   fi
 
   out_file="${WORK_DIR}/$(basename "${file}").stripped"
   exit_code=0
 
-  strip-ansi "${FLAGS[@]}" < "${file}" > "${out_file}" 2>/tmp/strip-ansi-stderr-$$ || exit_code=$?
-  stderr_out="$(cat /tmp/strip-ansi-stderr-$$ 2>/dev/null || true)"
-  rm -f /tmp/strip-ansi-stderr-$$
+  # Write stderr to a file under WORK_DIR (not /tmp) for portability and runner sandboxing.
+  stderr_file="$(mktemp "${WORK_DIR}/strip-ansi-stderr.XXXXXX")"
+  strip-ansi "${FLAGS[@]}" < "${file}" > "${out_file}" 2>"${stderr_file}" || exit_code=$?
+  stderr_out="$(cat "${stderr_file}" 2>/dev/null || true)"
+  rm -f "${stderr_file}"
 
   # Determine status from exit code.
   # Exit 77 means the binary detected echoback attack vectors.
@@ -154,7 +197,9 @@ for file in "${FILES[@]}"; do
     status="threat"
 
     if [ "${ON_THREAT}" = "warn" ]; then
-      echo "::warning file=${file}::Echoback attack vector detected in ${file}"
+      ef="$(escape_annotation_property "${file}")"
+      msg="$(escape_annotation_message "Echoback attack vector detected in ${file}")"
+      echo "::warning file=${ef}::${msg}"
     fi
 
     # When on-threat=fail we do not expose the (unstripped) output.
@@ -168,8 +213,12 @@ for file in "${FILES[@]}"; do
 
   else
     # Unexpected exit code — surface the error and abort.
-    [ -n "${stderr_out}" ] && echo "::error::strip-ansi stderr: ${stderr_out}"
-    echo "::error file=${file}::strip-ansi exited with unexpected code ${exit_code} for ${file}"
+    if [ -n "${stderr_out}" ]; then
+      echo "::error::strip-ansi stderr: $(escape_annotation_message "${stderr_out}")"
+    fi
+    ef="$(escape_annotation_property "${file}")"
+    msg="$(escape_annotation_message "strip-ansi exited with unexpected code ${exit_code} for ${file}")"
+    echo "::error file=${ef}::${msg}"
     exit "${exit_code}"
   fi
 
@@ -177,7 +226,9 @@ for file in "${FILES[@]}"; do
   [ -n "${stderr_out}" ] && log "  stderr: ${stderr_out}"
 
   # Build the output content JSON value.
-  if [ -n "${output_path}" ] && [ -f "${output_path}" ]; then
+  # Once the global results cap is reached, omit output content to prevent
+  # GITHUB_OUTPUT from growing unboundedly when many files are scanned.
+  if [ "${RESULTS_CAPPED}" = "false" ] && [ -n "${output_path}" ] && [ -f "${output_path}" ]; then
     out_json="$(json_file_content "${output_path}")"
   else
     out_json='""'
@@ -185,6 +236,16 @@ for file in "${FILES[@]}"; do
 
   file_json="$(json_string "${file}")"
   entry="{\"file\":${file_json},\"status\":\"${status}\",\"output\":${out_json}}"
+
+  # If this entry would push the results JSON over the global cap, switch to
+  # content-free entries for the remainder of the file list.
+  if [ "${RESULTS_CAPPED}" = "false" ] && \
+     [ $(( ${#RESULTS_JSON} + ${#entry} + 1 )) -gt ${MAX_RESULTS_BYTES} ]; then
+    RESULTS_CAPPED=true
+    log "Global results JSON cap (${MAX_RESULTS_BYTES} bytes) reached; omitting output content for remaining files."
+    out_json='""'
+    entry="{\"file\":${file_json},\"status\":\"${status}\",\"output\":${out_json}}"
+  fi
 
   if [ "${FIRST_ENTRY}" = "true" ]; then
     FIRST_ENTRY=false

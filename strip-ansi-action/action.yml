@@ -12,7 +12,7 @@ inputs:
   files:
     description: >
       Newline- or space-separated list of file paths to scan.
-      Typically populated from the output of actions/changed-files or a similar step.
+      Typically populated from the output of a changed-files step or a similar action.
     required: true
 
   on-threat:
@@ -27,10 +27,11 @@ inputs:
 
   unicode-map:
     description: >
-      Space-separated list of Unicode normalization sets to enable in addition to the built-in
-      defaults. Accepts @tag shorthand (e.g. @ascii-normalize, @japanese), a shipped file name
-      (e.g. math-latin), or a path to a custom TOML mapping file.
-      Passed to distill-strip-ansi as one --unicode-map flag per token.
+      Space-separated list of Unicode normalization sets to enable. Accepts @tag shorthand
+      (e.g. @ascii-normalize, @japanese), a shipped file name (e.g. math-latin), or a path to
+      a custom TOML mapping file. If provided, this replaces the default map set; if left empty,
+      the default is @ascii-normalize. Passed to distill-strip-ansi as one --unicode-map flag
+      per token.
     required: false
     default: '@ascii-normalize'
 
@@ -117,8 +118,28 @@ runs:
       if: ${{ inputs.on-threat == 'fail' && steps.process.outputs.threat-detected == 'true' }}
       shell: bash
       run: |
+        escape_annotation_property() {
+          local s="$1"
+          s="${s//'%'/'%25'}"
+          s="${s//$'\r'/'%0D'}"
+          s="${s//$'\n'/'%0A'}"
+          s="${s//':'/'%3A'}"
+          s="${s//','/'%2C'}"
+          printf '%s' "${s}"
+        }
+        escape_annotation_message() {
+          local s="$1"
+          s="${s//'%'/'%25'}"
+          s="${s//$'\r'/'%0D'}"
+          s="${s//$'\n'/'%0A'}"
+          printf '%s' "${s}"
+        }
         echo "::error::ANSI/Unicode echoback threat(s) detected. See annotated files below."
         while IFS= read -r f; do
-          [ -n "$f" ] && echo "::error file=${f}::Echoback attack vector detected in ${f}"
+          if [ -n "$f" ]; then
+            ef="$(escape_annotation_property "$f")"
+            msg="$(escape_annotation_message "Echoback attack vector detected in $f")"
+            echo "::error file=${ef}::${msg}"
+          fi
         done <<< "${{ steps.process.outputs.files-with-threats }}"
         exit 1

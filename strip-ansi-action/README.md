@@ -26,7 +26,7 @@ That's it. The action installs the `strip-ansi` binary, scans every file, and fa
 
 | Input | Required | Default | Description |
 |---|---|---|---|
-| `files` | **Yes** | — | Newline- or space-separated list of file paths to scan. Typically the output of [actions/changed-files](https://github.com/tj-actions/changed-files). |
+| `files` | **Yes** | — | Newline- or space-separated list of file paths to scan. Typically the output of [tj-actions/changed-files](https://github.com/tj-actions/changed-files). |
 | `on-threat` | No | `fail` | What to do when a threat is detected: `fail`, `strip`, or `warn`. See [Threat handling](#threat-handling) below. |
 | `preset` | No | `sanitize` | ANSI filter preset. One of `dumb`, `color`, `sanitize`, `tmux`, `xterm`, `full`. |
 | `unicode-map` | No | `@ascii-normalize` | Space-separated Unicode normalization sets to enable (e.g. `@ascii-normalize math-latin`). |
@@ -92,14 +92,14 @@ jobs:
           no-unicode-map: '@ascii-normalize'
 ```
 
-### Add Japanese canonicalization on top of the defaults
+### Add Japanese canonicalization alongside the defaults
 
 ```yaml
       - name: Scan with extended unicode normalization
         uses: marquetools/strip-ansi-action@v1
         with:
           files: ${{ steps.changed-files.outputs.all_changed_files }}
-          unicode-map: '@japanese'
+          unicode-map: '@ascii-normalize @japanese'
 ```
 
 ---
@@ -179,7 +179,7 @@ These sequences in a CI log file are **never legitimate**. The `sanitize` preset
 ## How It Works
 
 1. **Install** — Downloads the `strip-ansi` binary from the `belt/distill-strip-ansi` GitHub release (falls back to `cargo install`, then Homebrew). Cached per runner OS, arch, and version.
-2. **Scan** — For each file, runs `strip-ansi --check-threats --on-threat=... --preset=... < file > stripped`.
+2. **Scan** — For each file, runs `strip-ansi --check-threats --preset=... < file > stripped`, adding `--on-threat=strip` only when `on-threat=strip`.
 3. **Report** — Collects per-file status (`clean`, `stripped`, or `threat`) into a JSON array and writes all outputs to `$GITHUB_OUTPUT`.
 4. **Gate** — If `on-threat=fail` and any threat was detected, the action emits error annotations and exits non-zero.
 

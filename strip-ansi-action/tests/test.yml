@@ -26,7 +26,7 @@ jobs:
       # Get the list of files changed in this PR.
       - name: Get changed files
         id: changed-files
-        uses: actions/changed-files@v44
+        uses: tj-actions/changed-files@v44
         with:
           separator: '\n'
 
@@ -62,7 +62,7 @@ jobs:
 
       - name: Get changed files
         id: changed-files
-        uses: actions/changed-files@v44
+        uses: tj-actions/changed-files@v44
         with:
           separator: '\n'
 

@@ -66,7 +66,7 @@ outputs:
     description: >
       JSON array of per-file scan results.
       Schema: [{"file":"<path>","status":"clean|stripped|threat","output":"<stripped content>"}]
-      The output field is empty when on-threat=fail and the file contained a threat.
+      The output field is empty for files with detected threats unless on-threat=strip.
       Note: large files may be truncated in this field; check runner logs for full output.
     value: ${{ steps.process.outputs.results }}
 

@@ -38,6 +38,16 @@ MAX_OUTPUT_BYTES=51200
 # When this cap is reached, further entries record status only (no output content).
 MAX_RESULTS_BYTES=512000
 
+# Detect a Python interpreter (python3 first, then python as a fallback).
+if command -v python3 &>/dev/null; then
+  PYTHON="python3"
+elif command -v python &>/dev/null; then
+  PYTHON="python"
+else
+  echo "::error::strip-ansi-action requires Python 3 (python3 or python) but none was found on PATH." >&2
+  exit 1
+fi
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -108,9 +118,9 @@ build_flags() {
   fi
 }
 
-# JSON-encode a string using Python (available on all GitHub-hosted runners).
+# JSON-encode a string using Python (detected at startup above).
 json_string() {
-  python3 -c "import sys, json; print(json.dumps(sys.argv[1]), end='')" "$1"
+  "${PYTHON}" -c "import sys, json; print(json.dumps(sys.argv[1]), end='')" "$1"
 }
 
 # Return the byte length of a string (not character count) so the results-size
@@ -122,7 +132,7 @@ byte_len() {
 # Read a file and JSON-encode its contents, truncating at MAX_OUTPUT_BYTES.
 json_file_content() {
   local path="$1"
-  python3 - "${path}" "${MAX_OUTPUT_BYTES}" <<'PYEOF'
+  "${PYTHON}" - "${path}" "${MAX_OUTPUT_BYTES}" <<'PYEOF'
 import sys, json
 path, limit = sys.argv[1], int(sys.argv[2])
 with open(path, 'rb') as f:
@@ -256,15 +266,27 @@ for file in "${FILES[@]}"; do
   file_json="$(json_string "${file}")"
   entry="{\"file\":${file_json},\"status\":\"${status}\",\"output\":${out_json}}"
 
+  # Compute the bytes this entry would add (including separator comma if needed).
+  entry_sep_bytes=1
+  [ "${FIRST_ENTRY}" = "true" ] && entry_sep_bytes=0
+  projected_bytes=$(( $(byte_len "${RESULTS_JSON}") + $(byte_len "${entry}") + entry_sep_bytes ))
+
   # If this entry would push the results JSON over the global cap, switch to
   # content-free entries for the remainder of the file list.
   # Use byte_len (not ${#...}) so multi-byte UTF-8 sequences are counted correctly.
-  if [ "${RESULTS_CAPPED}" = "false" ] && \
-     [ $(( $(byte_len "${RESULTS_JSON}") + $(byte_len "${entry}") + 1 )) -gt ${MAX_RESULTS_BYTES} ]; then
+  if [ "${RESULTS_CAPPED}" = "false" ] && [ "${projected_bytes}" -gt ${MAX_RESULTS_BYTES} ]; then
     RESULTS_CAPPED=true
     log "Global results JSON cap (${MAX_RESULTS_BYTES} bytes) reached; omitting output content for remaining files."
     out_json='""'
     entry="{\"file\":${file_json},\"status\":\"${status}\",\"output\":${out_json}}"
+    projected_bytes=$(( $(byte_len "${RESULTS_JSON}") + $(byte_len "${entry}") + entry_sep_bytes ))
+  fi
+
+  # If even the content-free entry would exceed the cap, stop appending so
+  # the emitted results output always stays within the configured limit.
+  if [ "${projected_bytes}" -gt ${MAX_RESULTS_BYTES} ]; then
+    log "Global results JSON cap (${MAX_RESULTS_BYTES} bytes) prevents adding further entries; truncating results list."
+    break
   fi
 
   if [ "${FIRST_ENTRY}" = "true" ]; then

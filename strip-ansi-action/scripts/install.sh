@@ -197,5 +197,5 @@ else
 fi
 
 log "--- Verification ---"
-strip-ansi --version
-log "Binary path: $(command -v strip-ansi)"
+"${BINARY}" --version
+log "Binary path: ${BINARY}"

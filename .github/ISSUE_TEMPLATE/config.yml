@@ -1,0 +1,8 @@
+# SPDX-FileCopyrightText: 2026 Knitli Inc.
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+blank_issues_enabled: false
+contact_links:
+  - name: Security Vulnerability
+    url: https://github.com/marquetools/.github/security/advisories/new
+    about: Please report security vulnerabilities privately via GitHub's security advisory feature.

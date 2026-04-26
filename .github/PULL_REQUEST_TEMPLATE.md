@@ -13,9 +13,9 @@
 -->
 ## Related Issues
 
-<!-- Link any related issues here. Use "Closes #123" to auto-close on merge. -->
+<!-- Link any related issues here. Use "Closes #123" to auto-close on merge. Delete this line if not applicable. -->
 
-Closes #
+<!-- Closes #123 -->
 
 ## Testing
 

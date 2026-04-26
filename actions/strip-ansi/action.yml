@@ -54,7 +54,7 @@ runs:
   steps:
     - name: Strip ANSI
       id: strip-ansi
-      uses: marquetools/strip-ansi-action@v1
+      uses: marquetools/strip-ansi-action@a4f9814d1fb7f2b12533e37287bb8945abe25f58
       with:
         files: ${{ inputs.files }}
         on-threat: ${{ inputs.on-threat }}

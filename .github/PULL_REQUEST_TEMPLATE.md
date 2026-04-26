@@ -8,9 +8,9 @@
 ## Changes
 
 <!-- List the key changes made in this PR. -->
-
-- 
-
+<!-- Example:
+- Updated X to support Y
+-->
 ## Related Issues
 
 <!-- Link any related issues here. Use "Closes #123" to auto-close on merge. -->

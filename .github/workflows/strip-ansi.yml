@@ -5,9 +5,11 @@ on:
     types: [created, edited]
   pull_request_review_comment:
     types: [created, edited]
+  pull_request_review:
+    types: [submitted, edited]
   issues:
     types: [opened, edited]
-  pull_request:
+  pull_request_target:
     types: [opened, edited, synchronize]
 
 jobs:
@@ -28,10 +30,13 @@ jobs:
             issue_comment|pull_request_review_comment)
               jq -r '.comment.body // ""' "$GITHUB_EVENT_PATH" > "$CONTENT_FILE"
               ;;
+            pull_request_review)
+              jq -r '.review.body // ""' "$GITHUB_EVENT_PATH" > "$CONTENT_FILE"
+              ;;
             issues)
               jq -r '.issue.body // ""' "$GITHUB_EVENT_PATH" > "$CONTENT_FILE"
               ;;
-            pull_request)
+            pull_request_target)
               jq -r '.pull_request.body // ""' "$GITHUB_EVENT_PATH" > "$CONTENT_FILE"
               ;;
           esac

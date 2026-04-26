@@ -22,20 +22,22 @@ jobs:
 
       - name: Write content to file
         run: |
+          CONTENT_FILE="/tmp/content-${{ github.run_id }}.txt"
+          echo "CONTENT_FILE=$CONTENT_FILE" >> "$GITHUB_ENV"
           case "${{ github.event_name }}" in
             issue_comment|pull_request_review_comment)
-              jq -r '.comment.body // ""' "$GITHUB_EVENT_PATH" > /tmp/content.txt
+              jq -r '.comment.body // ""' "$GITHUB_EVENT_PATH" > "$CONTENT_FILE"
               ;;
             issues)
-              jq -r '.issue.body // ""' "$GITHUB_EVENT_PATH" > /tmp/content.txt
+              jq -r '.issue.body // ""' "$GITHUB_EVENT_PATH" > "$CONTENT_FILE"
               ;;
             pull_request)
-              jq -r '.pull_request.body // ""' "$GITHUB_EVENT_PATH" > /tmp/content.txt
+              jq -r '.pull_request.body // ""' "$GITHUB_EVENT_PATH" > "$CONTENT_FILE"
               ;;
           esac
 
       - name: Scan for ANSI threats
         uses: ./actions/strip-ansi
         with:
-          files: /tmp/content.txt
+          files: ${{ env.CONTENT_FILE }}
           on-threat: fail

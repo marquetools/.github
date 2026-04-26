@@ -1,0 +1,48 @@
+name: Strip ANSI
+
+on:
+  issue_comment:
+    types: [created, edited]
+  pull_request_review_comment:
+    types: [created, edited]
+  pull_request_review:
+    types: [submitted, edited]
+  issues:
+    types: [opened, edited]
+  pull_request_target:
+    types: [opened, edited, synchronize]
+
+jobs:
+  strip-ansi:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
+
+      - name: Write content to file
+        run: |
+          CONTENT_FILE="/tmp/content-${{ github.run_id }}.txt"
+          echo "CONTENT_FILE=$CONTENT_FILE" >> "$GITHUB_ENV"
+          case "${{ github.event_name }}" in
+            issue_comment|pull_request_review_comment)
+              jq -r '.comment.body // ""' "$GITHUB_EVENT_PATH" > "$CONTENT_FILE"
+              ;;
+            pull_request_review)
+              jq -r '.review.body // ""' "$GITHUB_EVENT_PATH" > "$CONTENT_FILE"
+              ;;
+            issues)
+              jq -r '.issue.body // ""' "$GITHUB_EVENT_PATH" > "$CONTENT_FILE"
+              ;;
+            pull_request_target)
+              jq -r '.pull_request.body // ""' "$GITHUB_EVENT_PATH" > "$CONTENT_FILE"
+              ;;
+          esac
+
+      - name: Scan for ANSI threats
+        uses: ./actions/strip-ansi
+        with:
+          files: ${{ env.CONTENT_FILE }}
+          on-threat: fail

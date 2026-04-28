@@ -1,48 +1,61 @@
-name: Strip ANSI
+name: ANSI & Unicode Threat Protection
 
 on:
+  push:
+    paths: [ "*" ]
+  pull_request:
+    types: [ opened, synchronize, reopened ]
   issue_comment:
-    types: [created, edited]
+    types: [ created, edited ]
   pull_request_review_comment:
-    types: [created, edited]
+    types: [ created, edited ]
   pull_request_review:
-    types: [submitted, edited]
-  issues:
-    types: [opened, edited]
-  pull_request_target:
-    types: [opened, edited, synchronize]
+    types: [ submitted, edited ]
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
 
 jobs:
-  strip-ansi:
+  scan-files:
+    name: Check files
     runs-on: ubuntu-latest
     permissions:
       contents: read
-
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
     steps:
-      - name: Checkout
-        uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
-
-      - name: Write content to file
-        run: |
-          CONTENT_FILE="/tmp/content-${{ github.run_id }}.txt"
-          echo "CONTENT_FILE=$CONTENT_FILE" >> "$GITHUB_ENV"
-          case "${{ github.event_name }}" in
-            issue_comment|pull_request_review_comment)
-              jq -r '.comment.body // ""' "$GITHUB_EVENT_PATH" > "$CONTENT_FILE"
-              ;;
-            pull_request_review)
-              jq -r '.review.body // ""' "$GITHUB_EVENT_PATH" > "$CONTENT_FILE"
-              ;;
-            issues)
-              jq -r '.issue.body // ""' "$GITHUB_EVENT_PATH" > "$CONTENT_FILE"
-              ;;
-            pull_request_target)
-              jq -r '.pull_request.body // ""' "$GITHUB_EVENT_PATH" > "$CONTENT_FILE"
-              ;;
-          esac
-
-      - name: Scan for ANSI threats
-        uses: ./actions/strip-ansi
+      - uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
         with:
-          files: ${{ env.CONTENT_FILE }}
+          fetch-depth: 2
+
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@aa6099ac788c76fd303a6312cedda79ae5df15ab
+        with:
+          since_last_remote_commit: true
+      - name: Scan for ANSI/Unicode threats in files
+        id: scan-files
+        uses: marquetools/strip-ansi-action@a4f9814d1fb7f2b12533e37287bb8945abe25f58
+        with:
+          files: ${{ steps.changed-files.outputs.all_changed_files }}
+          github-token: ${{ secrets.GITHUB_TOKEN || github.token }}
           on-threat: fail
+          preset: dumb
+
+  scan-comments:
+    name: Check Comments
+    if: github.event_name != 'pull_request' && github.event_name != 'push'
+    permissions:
+      issues: write
+      pull-requests: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: marquetools/strip-ansi-action@a4f9814d1fb7f2b12533e37287bb8945abe25f58
+        name: Scan for ANSI/Unicode in Comments
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN || github.token }}
+          clean-pr-comments: true
+          clean-issue-comments: true
+          on-threat: strip
+          preset: dumb

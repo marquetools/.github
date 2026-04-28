@@ -8,10 +8,20 @@ inputs:
     description: >
       Newline- or space-separated list of file paths to scan, e.g. files changed
       in a pull request.
-    required: true
+    required: false
+  clean-pr-comments:
+    description: >
+      Whether to screen or filter (requires write) PR comments. If false, will
+      not check PR comments.
+    default: "false"
+  clean-issue-comments:
+    description: >
+      Whether to screen or filter (requires write) issue comments. If false,
+      will not check issue comments.
+    default: "false"
   github-token:
     description: >
-      Github token for the calling repo. Required for write actions (i.e.
+      GitHub token for the calling repo. Required for write actions (i.e.
       strip), or for private repos.
   on-threat:
     description: >
@@ -54,8 +64,8 @@ outputs:
   comment-results:
     description: >
       JSON array of per-comment results, e.g.
-      "id":"<id>","type":"pr_comment|review_comment|issue_comment","url":"<html_url>","status":"clean|stripped|threat","output":"<stripped
-      content>"}
+      [{"id":"<id>","type":"pr_comment|review_comment|issue_comment","url":"<html_url>","status":"clean|stripped|threat","output":"<stripped
+      content>"}].
     value: ${{ steps.strip-ansi.outputs.comment-results }}
   comment-threat-detected:
     description: "\"true\" if any comment contained an attack vector."
@@ -78,3 +88,5 @@ runs:
         unicode-map: ${{ inputs.unicode-map }}
         no-unicode-map: ${{ inputs.no-unicode-map }}
         version: ${{ inputs.version }}
+        clean-issue-comments: ${{ inputs.clean-issue-comments }}
+        clean-pr-comments: ${{ inputs.clean-pr-comments }}

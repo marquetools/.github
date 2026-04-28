@@ -40,6 +40,10 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN || github.token }}
           on-threat: fail
           preset: dumb
+    outputs:
+      results: ${{ steps.scan-files.outputs.results }}
+      threat-detected: ${{ steps.scan-files.outputs.threat-detected }}
+      threats: ${{ steps.scan-files.outputs.files-with-threats }}
 
   scan-issue-comments:
     name: Check Issue Comments
@@ -48,7 +52,8 @@ jobs:
       issues: write
     runs-on: ubuntu-latest
     steps:
-      - uses: marquetools/strip-ansi-action@a4f9814d1fb7f2b12533e37287bb8945abe25f58
+      - uses: ./actions/strip-ansi
+        id: issue-scan
         name: Scan for ANSI/Unicode in Issue Comments
         with:
           github-token: ${{ secrets.GITHUB_TOKEN || github.token }}
@@ -56,19 +61,28 @@ jobs:
           clean-issue-comments: true
           on-threat: strip
           preset: dumb
+    outputs:
+      results: ${{ steps.issue-scan.outputs.comment-results }}
+      threat-detected: ${{ steps.issue-scan.outputs.comment-threat-detected }}
+      threats: ${{ steps.issue-scan.outputs.comments-with-threats }}
 
   scan-pr-review-comments:
     name: Check PR Review Comments
-    if: github.event_name == 'pull_request_review_comment' || github.event_name == 'pull_request_review'
+    if: github.event_name == 'pull_request_review_comment' || github.event_name ==
+      'pull_request_review'
     permissions:
       pull-requests: write
     runs-on: ubuntu-latest
     steps:
-      - uses: marquetools/strip-ansi-action@a4f9814d1fb7f2b12533e37287bb8945abe25f58
+      - uses: ./actions/strip-ansi
         name: Scan for ANSI/Unicode in PR Review Comments
+        id: pr-scan
         with:
           github-token: ${{ secrets.GITHUB_TOKEN || github.token }}
           clean-pr-comments: true
-          clean-issue-comments: true
           on-threat: strip
           preset: dumb
+    outputs:
+      results: ${{ steps.pr-scan.outputs.comment-results }}
+      threat-detected: ${{ steps.pr-scan.outputs.comment-threat-detected }}
+      threats: ${{ steps.pr-scan.outputs.comments-with-threats }}

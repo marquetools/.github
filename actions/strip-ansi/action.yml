@@ -1,53 +1,68 @@
 name: Strip ANSI
 description: >
-  Organizational wrapper around marquetools/strip-ansi-action.
-  Scans files for ANSI escape sequences and echoback attack vectors.
+  Organizational wrapper around marquetools/strip-ansi-action. Scans files for
+  ANSI escape sequences and echoback attack vectors.
 
 inputs:
   files:
     description: >
-      Newline- or space-separated list of file paths to scan,
-      e.g. files changed in a pull request.
+      Newline- or space-separated list of file paths to scan, e.g. files changed
+      in a pull request.
     required: true
+  github-token:
+    description: >
+      Github token for the calling repo. Required for write actions (i.e.
+      strip), or for private repos.
   on-threat:
     description: >
-      What to do when a threat is detected.
-      One of: fail, strip, warn.
+      What to do when a threat is detected. One of: fail, strip, warn.
     required: false
     default: fail
   preset:
     description: >
-      ANSI filter preset.
-      One of: dumb, color, sanitize, tmux, xterm, full.
+      ANSI filter preset. One of: dumb, color, sanitize, tmux, xterm, full.
     required: false
     default: sanitize
   unicode-map:
     description: >
-      Space-separated Unicode normalization sets to enable,
-      e.g. "@ascii-normalize math-latin".
+      Space-separated Unicode normalization sets to enable, e.g.
+      "@ascii-normalize math-latin".
     required: false
-    default: '@ascii-normalize'
+    default: "@ascii-normalize"
   no-unicode-map:
     description: Space-separated Unicode normalization sets to disable.
     required: false
-    default: ''
+    default: ""
   version:
     description: Version of distill-strip-ansi to install.
     required: false
-    default: '0.5.2'
+    default: "0.5.2"
 
 outputs:
-  results:
+  file-results:
     description: >
-      JSON array of per-file results,
-      e.g. [{"file":"…","status":"clean|stripped|threat","output":"…"}].
+      JSON array of per-file results, e.g.
+      [{"file":"…","status":"clean|stripped|threat","output":"…"}].
     value: ${{ steps.strip-ansi.outputs.results }}
-  threat-detected:
-    description: '"true" if any file contained an echoback attack vector, "false" otherwise.'
+  file-threat-detected:
+    description: "\"true\" if any file contained an echoback attack vector,
+      \"false\" otherwise."
     value: ${{ steps.strip-ansi.outputs.threat-detected }}
   files-with-threats:
     description: Newline-separated list of file paths that contained threats.
     value: ${{ steps.strip-ansi.outputs.files-with-threats }}
+  comment-results:
+    description: >
+      JSON array of per-comment results, e.g.
+      "id":"<id>","type":"pr_comment|review_comment|issue_comment","url":"<html_url>","status":"clean|stripped|threat","output":"<stripped
+      content>"}
+    value: ${{ steps.strip-ansi.outputs.comment-results }}
+  comment-threat-detected:
+    description: "\"true\" if any comment contained an attack vector."
+    value: ${{ steps.strip-ansi.outputs.comment-threat-detected }}
+  comments-with-threats:
+    description: Newline-separated list of comments that contained threats.
+    value: ${{ steps.strip-ansi.outputs.comments-with-threats }}
 
 runs:
   using: composite
@@ -56,6 +71,7 @@ runs:
       id: strip-ansi
       uses: marquetools/strip-ansi-action@a4f9814d1fb7f2b12533e37287bb8945abe25f58
       with:
+        github-token: ${{ inputs.github-token }}
         files: ${{ inputs.files }}
         on-threat: ${{ inputs.on-threat }}
         preset: ${{ inputs.preset }}

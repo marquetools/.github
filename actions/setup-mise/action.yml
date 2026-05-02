@@ -1,0 +1,133 @@
+# SPDX-FileCopyrightText: 2026 Knitli Inc.
+# SPDX-FileContributor: Adam Poulemanos <adam@knit.li>
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+name: Setup mise
+description: >
+  Org-wide composite action that installs mise and provisions tools from the
+  consumer repo's mise.toml / .mise.toml / .tool-versions. Thin wrapper over
+  jdx/mise-action with marquetools defaults.
+
+inputs:
+  install:
+    description: Run `mise install` after setting up mise.
+    required: false
+    default: "true"
+  install-args:
+    description: >
+      Args appended to `mise install` (e.g. "pnpm" to install only one tool from
+      mise.toml). When empty, all tools from the config are installed.
+    required: false
+    default: ""
+  cache:
+    description: Whether jdx/mise-action should cache mise + tool installs.
+    required: false
+    default: "true"
+  cache-key-prefix:
+    description: Optional cache key prefix to scope this run's cache.
+    required: false
+    default: ""
+  experimental:
+    description: Set MISE_EXPERIMENTAL=1 and pass `experimental: true` to mise-action.
+    required: false
+    default: "true"
+  reshim:
+    description: Run `mise reshim` after install (when `install: true`).
+    required: false
+    default: "true"
+  mise-env:
+    description: >
+      Optional value for MISE_ENV. When set, mise activates the matching
+      `[env.<name>]` section from your mise.toml.
+    required: false
+    default: ""
+  mise-debug:
+    description: Set MISE_VERBOSE=1 for verbose mise output.
+    required: false
+    default: "false"
+  mise-version:
+    description: Pin a specific mise version. When empty, jdx/mise-action picks its default.
+    required: false
+    default: ""
+  github-token:
+    description: >
+      GitHub token forwarded to jdx/mise-action's `github_token` input to avoid
+      GitHub API rate limits when installing tools.
+    required: false
+    default: ""
+  skip-checkout:
+    description: Skip the actions/checkout step (set "true" if caller already checked out).
+    required: false
+    default: "false"
+  fetch-depth:
+    description: Git fetch depth when checkout runs.
+    required: false
+    default: "1"
+  working-directory:
+    description: >
+      Subdirectory containing the mise config (relative to repo root).
+      When empty, mise reads from repo root.
+    required: false
+    default: ""
+
+outputs:
+  mise-path:
+    description: Absolute path to the mise executable.
+    value: ${{ steps.mise-outputs.outputs.mise-path }}
+  mise-version:
+    description: Version string from `mise --version`.
+    value: ${{ steps.mise-outputs.outputs.mise-version }}
+  mise-env:
+    description: Echoes back the active MISE_ENV value (empty when not set).
+    value: ${{ steps.mise-outputs.outputs.mise-env }}
+
+runs:
+  using: composite
+  steps:
+    - name: Checkout
+      if: inputs.skip-checkout != 'true'
+      uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # ratchet:actions/checkout@v5
+      with:
+        fetch-depth: ${{ inputs.fetch-depth }}
+
+    - name: Export mise environment
+      shell: bash
+      env:
+        MISE_ENV_INPUT: ${{ inputs.mise-env }}
+        MISE_DEBUG_INPUT: ${{ inputs.mise-debug }}
+      run: |
+        echo "MISE_YES=1" >> "$GITHUB_ENV"
+        if [ -n "${MISE_ENV_INPUT}" ]; then
+          echo "MISE_ENV=${MISE_ENV_INPUT}" >> "$GITHUB_ENV"
+        fi
+        if [ "${MISE_DEBUG_INPUT}" = "true" ]; then
+          echo "MISE_VERBOSE=1" >> "$GITHUB_ENV"
+        fi
+
+    - name: Run jdx/mise-action
+      uses: jdx/mise-action@eb508e65f0eb73d4fc9fc9505569833136217cc9 # ratchet:jdx/mise-action@v3
+      with:
+        github_token: ${{ inputs.github-token }}
+        version: ${{ inputs.mise-version }}
+        install: ${{ inputs.install }}
+        install_args: ${{ inputs.install-args }}
+        experimental: ${{ inputs.experimental }}
+        cache: ${{ inputs.cache }}
+        cache_key_prefix: ${{ inputs.cache-key-prefix }}
+        reshim: ${{ inputs.reshim }}
+        working_directory: ${{ inputs.working-directory }}
+
+    - name: Capture outputs
+      id: mise-outputs
+      shell: bash
+      run: |
+        mise_path="$(command -v mise || true)"
+        echo "mise-path=${mise_path}" >> "$GITHUB_OUTPUT"
+        if [ -n "${mise_path}" ]; then
+          version_line="$("${mise_path}" --version 2>/dev/null | head -n1 || true)"
+        else
+          version_line=""
+        fi
+        echo "mise-version=${version_line}" >> "$GITHUB_OUTPUT"
+        echo "mise-env=${MISE_ENV:-}" >> "$GITHUB_OUTPUT"

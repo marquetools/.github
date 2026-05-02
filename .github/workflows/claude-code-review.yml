@@ -1,0 +1,115 @@
+# SPDX-FileCopyrightText: 2026 Knitli Inc.
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+name: Claude Code Review
+
+# Reusable workflow. Caller stub example:
+#
+#   on:
+#     pull_request:
+#       types: [opened, synchronize, ready_for_review, reopened]
+#       paths: [...repo-specific paths...]
+#   jobs:
+#     review:
+#       uses: marquetools/.github/.github/workflows/claude-code-review.yml@main
+#       secrets: inherit
+#       permissions:
+#         contents: read
+#         pull-requests: read
+#         issues: read
+#         id-token: write
+#       with:
+#         plugin_marketplaces: |
+#           https://github.com/anthropics/claude-code.git
+#           https://github.com/knitli/toolshed.git
+#         plugins: |
+#           code-review@claude-code-plugins
+#           strip-ansi@toolshed
+
+on:
+  workflow_call:
+    inputs:
+      plugin_marketplaces:
+        description: Newline-separated list of plugin marketplaces.
+        required: false
+        type: string
+        default: |
+          https://github.com/anthropics/claude-code.git
+          https://github.com/knitli/toolshed.git
+      plugins:
+        description: Newline-separated list of plugins to enable.
+        required: false
+        type: string
+        default: |
+          code-review@claude-code-plugins
+          strip-ansi@toolshed
+      prompt:
+        description: Slash-command prompt to invoke. Defaults to the standard code-review prompt for the current PR.
+        required: false
+        type: string
+        default: ""
+      allowed_bots:
+        description: Comma-separated bot accounts whose PRs may trigger review.
+        required: false
+        type: string
+        default: "gemini[bot],jules[bot],copilot[bot],dependabot[bot],claude[bot]"
+      assignee_trigger:
+        description: Assignee username that triggers a review.
+        required: false
+        type: string
+        default: claude
+      mise_install_args:
+        description: Optional `mise install` args (e.g. `pnpm` to install only one tool from mise.toml).
+        required: false
+        type: string
+        default: ""
+      mise_env:
+        description: Optional MISE_ENV value to activate `[env.<name>]` sections from mise.toml.
+        required: false
+        type: string
+        default: ""
+      use_commit_signing:
+        description: Whether claude-code-action should sign commits it creates.
+        required: false
+        type: boolean
+        default: true
+      fetch_depth:
+        description: Git fetch depth for checkout.
+        required: false
+        type: number
+        default: 2
+
+jobs:
+  claude-review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: read
+      id-token: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
+        with:
+          fetch-depth: ${{ inputs.fetch_depth }}
+
+      - name: Setup mise environment
+        uses: marquetools/.github/actions/setup-mise@main
+        with:
+          install-args: ${{ inputs.mise_install_args }}
+          mise-env: ${{ inputs.mise_env }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          skip-checkout: "true"
+
+      - name: Run Claude Code Review
+        id: claude-review
+        uses: anthropics/claude-code-action@567fe954a4527e81f132d87d1bdbcc94f7737434
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          plugin_marketplaces: ${{ inputs.plugin_marketplaces }}
+          plugins: ${{ inputs.plugins }}
+          prompt: ${{ inputs.prompt != '' && inputs.prompt || format('/code-review:code-review {0}/pull/{1}', github.repository, github.event.pull_request.number) }}
+          use_commit_signing: ${{ inputs.use_commit_signing }}
+          allowed_bots: ${{ inputs.allowed_bots }}
+          assignee_trigger: ${{ inputs.assignee_trigger }}

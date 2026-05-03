@@ -12,7 +12,7 @@ name: Claude Code Review
 #       paths: [...repo-specific paths...]
 #   jobs:
 #     review:
-#       uses: marquetools/.github/.github/workflows/claude-code-review.yml@main
+#       uses: marquetools/.github/.github/workflows/claude-code-review.yml@0d4d32a32c07ad29131135790da7949f01d1c6ef
 #       secrets: inherit
 #       permissions:
 #         contents: read

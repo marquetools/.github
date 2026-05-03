@@ -1,5 +1,4 @@
 name: "🔀 Gemini Triage"
-
 on:
   workflow_call:
     inputs:
@@ -7,24 +6,43 @@ on:
         type: "string"
         description: "Any additional context from the request"
         required: false
+      gemini_api_key:
+        type: "string"
+        description: "Gemini API key"
+        required: true
+      github-token:
+        type: "string"
+        description: "Caller's github token"
+        required: true
+      gemini_debug:
+        type: string
+        required: false
+      trust_workspace:
+        type: boolean
+        default: true
+      app_id:
+        type: string
+        required: false
+      app_private_key:
+        type: string
+        required: false
 
 concurrency:
-  group: "${{ github.workflow }}-triage-${{ github.event_name }}-${{ github.event.pull_request.number || github.event.issue.number }}"
+  group: "${{ github.workflow }}-plan-execute-${{ github.event_name }}-${{
+    github.event.pull_request.number || github.event.issue.number }}"
   cancel-in-progress: true
 
 defaults:
   run:
     shell: "bash"
 
-
 env:
-  # this is set to true in repository settings, but we default to false here to make it easier to turn off
-  GEMINI_CLI_TRUST_WORKSPACE: ${{ vars.GEMINI_CLI_TRUST_WORKSPACE || 'false' }}
+  GEMINI_CLI_TRUST_WORKSPACE: ${{ inputs.trust_workspace || vars.GEMINI_CLI_TRUST_WORKSPACE || 'false' }}
 
 jobs:
   triage:
     runs-on: "ubuntu-latest"
-    timeout-minutes: 7
+    timeout-minutes: 10
     outputs:
       available_labels: "${{ steps.get_labels.outputs.available_labels }}"
       selected_labels: "${{ env.SELECTED_LABELS }}"
@@ -36,7 +54,7 @@ jobs:
     steps:
       - name: "Get repository labels"
         id: "get_labels"
-        uses: "actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3" # ratchet:actions/github-script@v9.0.0
+        uses: "actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3"
         with:
           # NOTE: we intentionally do not use the given token. The default
           # GITHUB_TOKEN provided by the action has enough permissions to read
@@ -64,25 +82,16 @@ jobs:
         id: "gemini_analysis"
         if: |-
           ${{ steps.get_labels.outputs.available_labels != '' }}
-        uses: "google-github-actions/run-gemini-cli@f77273f4c914e4bf38440cf36a0369cb64a37489" # ratchet:exclude
+        uses: "google-github-actions/run-gemini-cli@f77273f4c914e4bf38440cf36a0369cb64a\
+          37489" # ratchet:exclude
         env:
           GITHUB_TOKEN: "" # Do NOT pass any auth tokens here since this runs on untrusted inputs
           ISSUE_TITLE: "${{ github.event.issue.title }}"
           ISSUE_BODY: "${{ github.event.issue.body }}"
           AVAILABLE_LABELS: "${{ steps.get_labels.outputs.available_labels }}"
+          GEMINI_CLI_TRUST_WORKSPACE: "${{ env.GEMINI_CLI_TRUST_WORKSPACE || inputs.trust_workspace }}"
         with:
-          gcp_location: "${{ vars.GOOGLE_CLOUD_LOCATION }}"
-          gcp_project_id: "${{ vars.GOOGLE_CLOUD_PROJECT }}"
-          gcp_service_account: "${{ vars.SERVICE_ACCOUNT_EMAIL }}"
-          gcp_workload_identity_provider: "${{ vars.GCP_WIF_PROVIDER }}"
-          gemini_api_key: "${{ secrets.GEMINI_API_KEY }}"
-          gemini_cli_version: "${{ vars.GEMINI_CLI_VERSION }}"
-          gemini_debug: "${{ fromJSON(vars.GEMINI_DEBUG || vars.ACTIONS_STEP_DEBUG || 'false') }}"
-          gemini_model: "${{ vars.GEMINI_MODEL }}"
-          google_api_key: "${{ secrets.GOOGLE_API_KEY }}"
-          use_gemini_code_assist: "${{ vars.GOOGLE_GENAI_USE_GCA }}"
-          use_vertex_ai: "${{ vars.GOOGLE_GENAI_USE_VERTEXAI }}"
-          upload_artifacts: "${{ vars.UPLOAD_ARTIFACTS }}"
+          gemini_api_key: "${{ inputs.gemini_api_key || secrets.GEMINI_API_KEY }}"
           workflow_name: "gemini-triage"
           # Explicitly set the issue number to handle `issue_comment` triggers where the context might be ambiguous
           github_issue_number: "${{ github.event.issue.number }}"
@@ -118,25 +127,29 @@ jobs:
       - name: "Mint identity token"
         id: "mint_identity_token"
         if: |-
-          ${{ vars.APP_ID }}
-        uses: "actions/create-github-app-token@1b10c78c7865c340bc4f6099eb2f838309f1e8c3" # ratchet:actions/create-github-app-token@v2
+          ${{ inputs.app_id || vars.APP_ID }}
+        uses: "actions/create-github-app-token@1b10c78c7865c340bc4f6099eb2f838309f1e8c3"
         with:
-          app-id: "${{ vars.APP_ID }}"
-          private-key: "${{ secrets.APP_PRIVATE_KEY }}"
+          client-id: "${{ inputs.app_id || vars.APP_ID || vars.CLIENT_ID }}"
+          private-key: "${{ inputs.app_private_key || secrets.APP_PRIVATE_KEY }}"
           permission-contents: "read"
           permission-issues: "write"
           permission-pull-requests: "write"
 
       - name: "Apply labels"
         env:
-          ISSUE_NUMBER: "${{ github.event.pull_request.number || github.event.issue.number }}"
+          ISSUE_NUMBER: "${{ github.event.pull_request.number || github.event.issue.number
+            }}"
           AVAILABLE_LABELS: "${{ needs.triage.outputs.available_labels }}"
           SELECTED_LABELS: "${{ needs.triage.outputs.selected_labels }}"
-        uses: "actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3" # ratchet:actions/github-script@v9.0.0
+          GEMINI_CLI_TRUST_WORKSPACE: "${{ env.GEMINI_CLI_TRUST_WORKSPACE || inputs.trust_workspace }}"
+
+        uses: "actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3"
         with:
           # Use the provided token so that the "gemini-cli" is the actor in the
           # log for what changed the labels.
-          github-token: "${{ steps.mint_identity_token.outputs.token || secrets.GITHUB_TOKEN || github.token }}"
+          github-token: "${{ steps.mint_identity_token.outputs.token ||
+            inputs.github-token || secrets.GITHUB_TOKEN || github.token }}"
           script: |-
             // Parse the available labels
             const availableLabels = (process.env.AVAILABLE_LABELS || '').split(',')

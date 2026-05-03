@@ -45,7 +45,8 @@ on:
           code-review@claude-code-plugins
           strip-ansi@toolshed
       prompt:
-        description: Slash-command prompt to invoke. Defaults to the standard code-review prompt for the current PR.
+        description: Slash-command prompt to invoke. Defaults to the standard
+          code-review prompt for the current PR.
         required: false
         type: string
         default: ""
@@ -53,19 +54,16 @@ on:
         description: Comma-separated bot accounts whose PRs may trigger review.
         required: false
         type: string
-        default: "gemini[bot],jules[bot],copilot[bot],dependabot[bot],claude[bot],bashandbone"
+        default: >-
+          gemini[bot],jules[bot],copilot[bot],dependabot[bot],claude[bot]
       assignee_trigger:
         description: Assignee username that triggers a review.
         required: false
         type: string
         default: claude
-      mise_install_args:
-        description: Optional `mise install` args (e.g. `pnpm` to install only one tool from mise.toml).
-        required: false
-        type: string
-        default: ""
       mise_env:
-        description: Optional MISE_ENV value to activate `[env.<name>]` sections from mise.toml.
+        description: Optional MISE_ENV value to activate `[env.<name>]` sections from
+          mise.toml.
         required: false
         type: string
         default: ""
@@ -79,6 +77,15 @@ on:
         required: false
         type: number
         default: 2
+      github-token:
+        description: Caller's Github token
+        type: string
+      app_id:
+        required: true
+        type: string
+      app_private_key:
+        required: true
+        type: string
 
 jobs:
   claude-review:
@@ -94,22 +101,18 @@ jobs:
         with:
           fetch-depth: ${{ inputs.fetch_depth }}
 
-      - name: Setup mise environment
-        uses: marquetools/.github/actions/setup-mise@0d4d32a32c07ad29131135790da7949f01d1c6ef
-        with:
-          install-args: ${{ inputs.mise_install_args }}
-          mise-env: ${{ inputs.mise_env }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          skip-checkout: "true"
-
       - name: Run Claude Code Review
+        env:
+          MISE_ENV: ${{ inputs.mise_env }}
         id: claude-review
         uses: anthropics/claude-code-action@567fe954a4527e81f132d87d1bdbcc94f7737434
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           plugin_marketplaces: ${{ inputs.plugin_marketplaces }}
           plugins: ${{ inputs.plugins }}
-          prompt: ${{ inputs.prompt != '' && inputs.prompt || format('/code-review:code-review {0}/pull/{1}', github.repository, github.event.pull_request.number) }}
+          prompt: ${{ inputs.prompt != '' && inputs.prompt ||
+            format('/code-review:code-review {0}/pull/{1}', github.repository,
+            github.event.pull_request.number) }}
           use_commit_signing: ${{ inputs.use_commit_signing }}
           allowed_bots: ${{ inputs.allowed_bots }}
           assignee_trigger: ${{ inputs.assignee_trigger }}

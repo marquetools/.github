@@ -53,7 +53,7 @@ on:
         description: Comma-separated bot accounts whose PRs may trigger review.
         required: false
         type: string
-        default: "gemini[bot],jules[bot],copilot[bot],dependabot[bot],claude[bot]"
+        default: "gemini[bot],jules[bot],copilot[bot],dependabot[bot],claude[bot],bashandbone"
       assignee_trigger:
         description: Assignee username that triggers a review.
         required: false

@@ -8,7 +8,7 @@ name: "📋 Gemini Scheduled Issue Triage"
 #     workflow_dispatch:
 #   jobs:
 #     scheduled-triage:
-#       uses: marquetools/.github/.github/workflows/gemini-scheduled-triage.yml@main
+#       uses: marquetools/.github/.github/workflows/gemini-scheduled-triage.yml@0d4d32a32c07ad29131135790da7949f01d1c6ef
 #       secrets: inherit
 
 on:

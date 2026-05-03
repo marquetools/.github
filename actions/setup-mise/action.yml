@@ -87,7 +87,7 @@ runs:
   steps:
     - name: Checkout
       if: inputs.skip-checkout != 'true'
-      uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # ratchet:actions/checkout@v5
+      uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
       with:
         fetch-depth: ${{ inputs.fetch-depth }}
 
@@ -106,7 +106,7 @@ runs:
         fi
 
     - name: Run jdx/mise-action
-      uses: jdx/mise-action@eb508e65f0eb73d4fc9fc9505569833136217cc9 # ratchet:jdx/mise-action@v3
+      uses: jdx/mise-action@eb508e65f0eb73d4fc9fc9505569833136217cc9
       with:
         github_token: ${{ inputs.github-token }}
         version: ${{ inputs.mise-version }}

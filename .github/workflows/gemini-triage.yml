@@ -129,7 +129,7 @@ jobs:
 
       - name: "Apply labels"
         env:
-          ISSUE_NUMBER: "${{ github.event.issue.number }}"
+          ISSUE_NUMBER: "${{ github.event.pull_request.number || github.event.issue.number }}"
           AVAILABLE_LABELS: "${{ needs.triage.outputs.available_labels }}"
           SELECTED_LABELS: "${{ needs.triage.outputs.selected_labels }}"
         uses: "actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3" # ratchet:actions/github-script@v9.0.0

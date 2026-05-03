@@ -103,12 +103,12 @@ jobs:
 
 ### Required vars and secrets
 
-The Gemini workflows read these from the consumer repo's environment (forwarded via `secrets: inherit`):
+The Gemini workflows read these from the consumer repo's configuration:
 
-- **Secrets**: `GEMINI_API_KEY` (or `GOOGLE_API_KEY`), `APP_PRIVATE_KEY` (optional, if using a GitHub App), `CLAUDE_CODE_OAUTH_TOKEN` (claude-code-review only)
-- **Vars**: `APP_ID`, `GEMINI_MODEL`, `GEMINI_CLI_VERSION`, `GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_LOCATION`, `SERVICE_ACCOUNT_EMAIL`, `GCP_WIF_PROVIDER`, `GOOGLE_GENAI_USE_GCA`, `GOOGLE_GENAI_USE_VERTEXAI`, `UPLOAD_ARTIFACTS`, `GEMINI_DEBUG`, `GEMINI_CLI_TRUST_WORKSPACE`
+- **Secrets** (pass via `secrets: inherit` or explicit mapping): `GEMINI_API_KEY` (or `GOOGLE_API_KEY`), `APP_PRIVATE_KEY` (optional, if using a GitHub App), `CLAUDE_CODE_OAUTH_TOKEN` (claude-code-review only)
+- **Vars** (read from the caller repo/org/environment `vars` context; not forwarded by `secrets: inherit`): `APP_ID`, `GEMINI_MODEL`, `GEMINI_CLI_VERSION`, `GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_LOCATION`, `SERVICE_ACCOUNT_EMAIL`, `GCP_WIF_PROVIDER`, `GOOGLE_GENAI_USE_GCA`, `GOOGLE_GENAI_USE_VERTEXAI`, `UPLOAD_ARTIFACTS`, `GEMINI_DEBUG`, `GEMINI_CLI_TRUST_WORKSPACE`
 
-Unset vars/secrets fall back to safe defaults; the workflows skip GitHub App token minting when `APP_ID` is empty.
+Unset vars and secrets fall back to safe defaults; the workflows skip GitHub App token minting when `APP_ID` is empty.
 
 ## Composite actions
 

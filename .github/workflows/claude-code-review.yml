@@ -95,7 +95,7 @@ jobs:
           fetch-depth: ${{ inputs.fetch_depth }}
 
       - name: Setup mise environment
-        uses: marquetools/.github/actions/setup-mise@main
+        uses: marquetools/.github/actions/setup-mise@0d4d32a32c07ad29131135790da7949f01d1c6ef
         with:
           install-args: ${{ inputs.mise_install_args }}
           mise-env: ${{ inputs.mise_env }}
